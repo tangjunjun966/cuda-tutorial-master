@@ -3,4 +3,4 @@
 cuda_tutorials/x64/
 x64/
 cuda_tutorials.vc*
-yolo_full_postprocess.cu
+tutorials_yolo_postprocess.cu

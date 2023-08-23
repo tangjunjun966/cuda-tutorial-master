@@ -2,6 +2,19 @@
 
 
 /*!
+
+
+    我的教程优势:一系列且强逻辑顺序教程，附有源码，实战性很强。
+
+    只有核心cuda处理代码，隐藏在教程中，我将不开源，毕竟已开源很多cuda教程代码，也为本次教程付出很多汗水。
+
+    因此，核心代码于yolo部署cuda代码和整个文字解释教程需要有一定补偿，望理解。
+
+    可以保证，认真学完教程，cuda编程毫无压力。
+
+    详情请链接:http://t.csdn.cn/NaCZ5
+
+
     @Description : cuda nms计算方法
     @Author      : tangjun
     @Date        : 2023-08-07
@@ -154,7 +167,7 @@ vector<nms_box> nms(vector<nms_box> boxes, float threshold)
     return kept_boxes;
 }
 
-int main_nms()
+int main_eleven()
 {
     // 创建一组矩形框
     vector<nms_box> boxes = {
