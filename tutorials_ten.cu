@@ -10,170 +10,24 @@ using namespace std;
 
 
 
-
-__global__ void addKernel(int* c, int* a, int* b)
-{
-	int i = threadIdx.x;
-	c[i] = a[i] + b[i];
-}
-
-void testStream() {
-	int const N = 100;
-	int p_data_a[N] = { 0 };
-	int p_data_b[N] = { 0 };
-	int p_data_c[N] = { 0 };
-
-	for (int i = 0; i < N; i++) {
-		p_data_a[i] = i;
-		p_data_b[i] = 1000 + i;
-		
-	}
-
-
-	cout << "\n输入数据：\n" << "p_data_a:" << endl;
-
-	for (int i = 0; i < N; i++) { cout << p_data_a[i] << "\t"; }
-	cout << "\np_data_b:" << endl;
-	for (int i = 0; i < N; i++) { cout << p_data_b[i] << "\t"; }
-	
-
-
-	int* dev_a = nullptr;
-	int* dev_b = nullptr;
-	int* dev_c = nullptr;
-	cudaMalloc(&dev_a, sizeof(int) * N);
-	cudaMalloc(&dev_b, sizeof(int) * N);
-	cudaMalloc(&dev_c, sizeof(int) * N);
-
-	//拷贝到内存
-	cudaMemcpy(dev_a, p_data_a, sizeof(int) * N, cudaMemcpyHostToDevice);
-	cudaMemcpy(dev_b, p_data_b, sizeof(int) * N, cudaMemcpyHostToDevice);
-
-	cudaStream_t streams[N];
-	for (int i = 0; i < N; ++i) { cudaStreamCreate(streams + i); }
-
-	for (int i = 0; i < N; ++i) { addKernel << <1, 1, 0 >> > (dev_c + i, dev_a + i, dev_b + i); }
-	cudaDeviceSynchronize();
-	
-	cudaMemcpy(p_data_c, dev_c, sizeof(int) * N, cudaMemcpyDeviceToHost);
-	
-	
-	cout << "\n查看输出结果：" << endl;
-	
-	for (int i = 0; i < N; i++) {		cout << p_data_c[i] << "\t";	}
-	
-	
-	cout << endl;
-	cout << "over" << endl;
-	
-	
-	
-	cudaFree(dev_a);
-	cudaFree(dev_b);
-	cudaFree(dev_c);
-}
-
-
-int stream_apply1() {
-	testStream();
-	getchar();
-	return 0;
-}
-
-
-__global__ void kernel_one(int* a, int* b, int* c, int N)
+__global__ void kernel_one(int* a, int* b, int* c)
 {
 	int threadID = blockIdx.x * blockDim.x + threadIdx.x;
 	//printf("threadID:%d\n", threadID);
-	if (threadID < N)
-	{
-		c[threadID] = (a[threadID] + b[threadID]) / 2;
-	}
+
+	c[threadID] = a[threadID] + b[threadID];
+	
 }
 
-int stream_apply2()
+int stream_apply1()
 {
-
-	int N = 1024 * 1024;
-	const int FULL_DATA_SIZE = N * 20;
-
-
-	//启动计时器
-	cudaEvent_t start, stop;
-	float elapsedTime;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, 0);
-
-	int* host_a, * host_b, * host_c;
-	int* dev_a, * dev_b, * dev_c;
-
-	//在GPU上分配内存
-	cudaMalloc((void**)&dev_a, FULL_DATA_SIZE * sizeof(int));
-	cudaMalloc((void**)&dev_b, FULL_DATA_SIZE * sizeof(int));
-	cudaMalloc((void**)&dev_c, FULL_DATA_SIZE * sizeof(int));
-
-	//在CPU上分配可分页内存
-	host_a = (int*)malloc(FULL_DATA_SIZE * sizeof(int));
-	host_b = (int*)malloc(FULL_DATA_SIZE * sizeof(int));
-	host_c = (int*)malloc(FULL_DATA_SIZE * sizeof(int));
-
-	//主机上的内存赋值
-	for (int i = 0; i < FULL_DATA_SIZE; i++)
-	{
-		host_a[i] = i;
-		host_b[i] = FULL_DATA_SIZE - i;
-	}
-
-	//从主机到设备复制数据
-	cudaMemcpy(dev_a, host_a, FULL_DATA_SIZE * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(dev_b, host_b, FULL_DATA_SIZE * sizeof(int), cudaMemcpyHostToDevice);
-
-	kernel_one << <FULL_DATA_SIZE / 1024, 1024 >> > (dev_a, dev_b, dev_c, N);
-
-	//数据拷贝回主机
-	cudaMemcpy(host_c, dev_c, FULL_DATA_SIZE * sizeof(int), cudaMemcpyDeviceToHost);
-
-	//计时结束
-	cudaEventRecord(stop, 0);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&elapsedTime, start, stop);
-
-	std::cout << "消耗时间： " << elapsedTime << std::endl;
-
-	//输出前10个结果
-	for (int i = 0; i < 10; i++)
-	{
-		std::cout << host_c[i] << std::endl;
-	}
-
-	getchar();
-
-	cudaFreeHost(host_a);
-	cudaFreeHost(host_b);
-	cudaFreeHost(host_c);
-
-	cudaFree(dev_a);
-	cudaFree(dev_b);
-	cudaFree(dev_c);
-
-	return 0;
-}
-
-int stream_apply()
-{
-
-
-	int N = 1024 * 1024;
-	const int FULL_DATA_SIZE = N * 20;
-
-
+	int N = 32;
+	const int FULL_DATA_SIZE = N * 2;
 	//获取设备属性
 	cudaDeviceProp prop;
 	int deviceID;
 	cudaGetDevice(&deviceID);
 	cudaGetDeviceProperties(&prop, deviceID);
-
 	//检查设备是否支持重叠功能
 	if (!prop.deviceOverlap)
 	{
@@ -209,7 +63,7 @@ int stream_apply()
 	for (int i = 0; i < FULL_DATA_SIZE; i++)
 	{
 		host_a[i] = i;
-		host_b[i] = FULL_DATA_SIZE - i;
+		host_b[i] = 10000 * i;
 	}
 
 	for (int i = 0; i < FULL_DATA_SIZE; i += N)
@@ -217,7 +71,8 @@ int stream_apply()
 		cudaMemcpyAsync(dev_a, host_a + i, N * sizeof(int), cudaMemcpyHostToDevice, stream);
 		cudaMemcpyAsync(dev_b, host_b + i, N * sizeof(int), cudaMemcpyHostToDevice, stream);
 
-		kernel_one << <N / 1024, 1024, 0, stream >> > (dev_a, dev_b, dev_c, N);
+
+		kernel_one << <FULL_DATA_SIZE / 32, 32, 0, stream >> > (dev_a, dev_b, dev_c);
 
 		cudaMemcpyAsync(host_c + i, dev_c, N * sizeof(int), cudaMemcpyDeviceToHost, stream);
 	}
@@ -231,11 +86,15 @@ int stream_apply()
 
 	std::cout << "消耗时间： " << elapsedTime << std::endl;
 
-	//输出前10个结果
-	for (int i = 0; i < 10; i++)
-	{
-		std::cout << host_c[i] << std::endl;
-	}
+
+
+	cout << "输入数据host_a" << endl;
+	for (int i = 0; i < FULL_DATA_SIZE; i++) { std::cout << host_a[i] << "\t"; }
+	cout << "\n输入数据host_b" << endl;
+	for (int i = 0; i < FULL_DATA_SIZE; i++) { std::cout << host_b[i] << "\t"; }
+
+	cout << "\n输出结果host_c" << endl;
+	for (int i = 0; i < FULL_DATA_SIZE; i++)	{std::cout << host_c[i] << "\t"; }
 
 	getchar();
 
@@ -252,14 +111,148 @@ int stream_apply()
 	return 0;
 }
 
+int stream_apply2()
+{
+	const int NS = 4;
+	const int ND = 32;
+
+	//创建CUDA流与初始化
+	cudaStream_t streams[NS];
+	for (int i = 0; i < NS; i++) { cudaStreamCreate(&streams[i]); }
+	
+
+	int* host_a, * host_b, * host_c;
+	int* dev_a, * dev_b, * dev_c;
+
+	//在GPU上分配内存
+	//cudaMalloc((void**)&dev_a, ND * sizeof(int));
+	//cudaMalloc((void**)&dev_b, ND * sizeof(int));
+	//cudaMalloc((void**)&dev_c, ND * sizeof(int));
+
+
+	cudaMalloc((void**)&dev_a, ND * NS * sizeof(int));
+	cudaMalloc((void**)&dev_b, ND * NS * sizeof(int));
+	cudaMalloc((void**)&dev_c, ND * NS * sizeof(int));
+
+	//在CPU上分配页锁定内存
+	cudaHostAlloc((void**)&host_a, ND*NS * sizeof(int), cudaHostAllocDefault);
+	cudaHostAlloc((void**)&host_b, ND*NS * sizeof(int), cudaHostAllocDefault);
+	cudaHostAlloc((void**)&host_c, ND*NS * sizeof(int), cudaHostAllocDefault);
+
+	//主机上的内存赋值
+	for (int i = 0; i < ND * NS; i++)	{
+		host_a[i] = i;
+		host_b[i] = 10000 * i;	}
+
+	for (int i = 0; i < NS; i++)	{
+		cudaMemcpyAsync(dev_a + i * ND, host_a + i * ND, ND * sizeof(int), cudaMemcpyHostToDevice, streams[i]);
+		cudaMemcpyAsync(dev_b + i * ND, host_b + i * ND, ND * sizeof(int), cudaMemcpyHostToDevice, streams[i]);
+		kernel_one << <ND / 32, 32, 0, streams[i] >> > (dev_a + i * ND, dev_b + i * ND, dev_c + i * ND);
+		cudaMemcpyAsync(host_c + i * ND, dev_c + i * ND, ND * sizeof(int), cudaMemcpyDeviceToHost, streams[i]);
+
+	}
+
+	// wait until gpu execution finish  
+	cudaDeviceSynchronize();
+
+	cout << "输入数据host_a" << endl;
+	for (int i = 0; i < ND * NS; i++) { std::cout << host_a[i] << "\t"; }
+	cout << "\n输入数据host_b" << endl;
+	for (int i = 0; i < ND * NS; i++) { std::cout << host_b[i] << "\t"; }
+	cout << "\n输出结果host_c" << endl;
+	for (int i = 0; i < ND * NS; i++) { std::cout << host_c[i] << "\t"; }
+	// free stream and mem  
+	cudaFreeHost(host_a);
+	cudaFreeHost(host_b);
+	cudaFreeHost(host_c);
+
+	cudaFree(dev_a);
+	cudaFree(dev_b);
+	cudaFree(dev_c);
+
+	for (int i = 0; i < NS; i++) { cudaStreamDestroy(streams[i]); }
+	return 0;
+}
 
 
 
 
-int main() {
+int stream_apply3()
+{
+	const int NS = 4; //流个数
+	const int ND = 32; //每个流分配负责多少个数据
+
+	cudaStream_t streams[NS]; //创建多个cuda流
+	for (int i = 0; i < NS; i++) { cudaStreamCreate(&streams[i]); } //每个流初始化
+
+	int* host_a, * host_b, * host_c; //host端变量
+	int* dev_a, * dev_b, * dev_c; //gpu端变量
+
+	//在GPU上分配内存
+	cudaMalloc((void**)&dev_a, ND * sizeof(int));
+	cudaMalloc((void**)&dev_b, ND * sizeof(int));
+	cudaMalloc((void**)&dev_c, ND * sizeof(int));
+
+	
+	//在CPU上分配页锁定内存，必须使用cudaHostAlloc方法
+	cudaHostAlloc((void**)&host_a, ND * NS * sizeof(int), cudaHostAllocDefault);
+	cudaHostAlloc((void**)&host_b, ND * NS * sizeof(int), cudaHostAllocDefault);
+	cudaHostAlloc((void**)&host_c, ND * NS * sizeof(int), cudaHostAllocDefault);
+
+	//主机上的内存赋值
+	for (int i = 0; i < ND * NS; i++) {
+		host_a[i] = i;
+		host_b[i] = 10000 * i;
+	}
+	//循环流，为每个流分配数据赋值与kernel操作过程
+	for (int i = 0; i < NS; i++) {
+		cudaMemcpyAsync(dev_a , host_a + i * ND, ND * sizeof(int), cudaMemcpyHostToDevice, streams[i]);
+		cudaMemcpyAsync(dev_b , host_b + i * ND, ND * sizeof(int), cudaMemcpyHostToDevice, streams[i]);
+		kernel_one << <ND / 32, 32, 0, streams[i] >> > (dev_a , dev_b , dev_c );
+		cudaMemcpyAsync(host_c + i * ND, dev_c , ND * sizeof(int), cudaMemcpyDeviceToHost, streams[i]);
+
+	}
+
+	// wait until gpu execution finish  
+	cudaDeviceSynchronize();//等待所有异步执行完，cpu才操作
+	//打印输出结果
+	cout << "输入数据host_a" << endl;
+	for (int i = 0; i < ND * NS; i++) { std::cout << host_a[i] << "\t"; }
+	cout << "\n输入数据host_b" << endl;
+	for (int i = 0; i < ND * NS; i++) { std::cout << host_b[i] << "\t"; }
+	cout << "\n输出结果host_c" << endl;
+	for (int i = 0; i < ND * NS; i++) { std::cout << host_c[i] << "\t"; }
+	// free stream and mem  
+	cudaFreeHost(host_a);
+	cudaFreeHost(host_b);
+	cudaFreeHost(host_c);
+
+	cudaFree(dev_a);
+	cudaFree(dev_b);
+	cudaFree(dev_c);
+
+	for (int i = 0; i < NS; i++) { cudaStreamDestroy(streams[i]); }
+	return 0;
+}
 
 
-	stream_apply1();
+
+
+
+
+
+
+
+
+
+
+
+int main_ten() {
+
+
+	//stream_apply1();
+	stream_apply2();
+	stream_apply3();
 
 	return 0;
 
