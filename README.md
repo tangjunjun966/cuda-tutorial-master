@@ -39,7 +39,7 @@
 
 
 ### 我已收到网友相关需求，我基本已共享很多代码，可自习琢磨研究，具体代码解读或系列理论内容在我链接中。基于创造不易，内容查看或小部分代码学习需少量补偿。望理解，也帮忙顺手点赞点赞
-## CSDN教程链接地址：http://t.csdn.cn/J4KZj
+## CSDN教程链接地址：[http://t.csdn.cn/J4KZj](http://t.csdnimg.cn/CD5IG)
 ## YOLO的部署实战篇开源代码地址：https://github.com/tangjunjun966/yolov5-tensorrt-onnx-master/tree/master
 
 
